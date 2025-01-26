@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home Automation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #18191c;
+            --bg-secondary: #2d2e32;
+            --text-primary: #ffffff;
+            --text-secondary: #9ba1a6;
+            --accent-color: #3d5afe;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Hamburger menu styles */
+        .nav-container {
+            position: fixed;
+            top: 0;
+            right: 0;
+            padding: 1rem;
+            z-index: 1000;
+        }
+
+        .nav-menu {
+            position: absolute;
+            top: 100%;
+            right: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 0.5rem;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-menu.show {
+            display: block;
+        }
+
+        .nav-toggle {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .nav-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-links {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-links a {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 0.75rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover {
+            background: rgba(61, 90, 254, 0.1);
+        }
+
+        .nav-links a.active {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .nav-links i {
+            width: 24px;
+            text-align: center;
+        }
+
+        /* Preferences section */
+        .preferences {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .preferences h3 {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .preference-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .preference-item label {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        /* Toggle switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Content wrapper */
+        .content-wrapper {
+            padding-top: 4rem;  /* Space for the fixed nav */
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-container">
+        <button class="nav-toggle" id="navToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+        <nav class="nav-menu" id="navMenu">
+            <ul class="nav-links">
+                <li>
+                    <a href="{{ url_for('devices') }}" class="{{ 'active' if request.endpoint == 'devices' }}">
+                        <i class="fas fa-home"></i>
+                        Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ url_for('chat') }}" class="{{ 'active' if request.endpoint == 'chat' }}">
+                        <i class="fas fa-comments"></i>
+                        Chat
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ url_for('voice') }}" class="{{ 'active' if request.endpoint == 'voice' }}">
+                        <i class="fas fa-microphone"></i>
+                        Voice
+                    </a>
+                </li>
+                <li>
+                    <a href="{{ url_for('preferences') }}" class="{{ 'active' if request.endpoint == 'preferences' }}">
+                        <i class="fas fa-cog"></i>
+                        Preferences
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <div class="content-wrapper" id="contentWrapper">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        // Simple toggle for hamburger menu
+        document.getElementById('navToggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('navMenu').classList.toggle('show');
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('navMenu');
+            if (menu.classList.contains('show') && !menu.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+
+        // Save preferences to localStorage
+        function savePreference(key, value) {
+            localStorage.setItem(key, value);
+        }
+
+        // Load preferences from localStorage
+        function loadPreferences() {
+            const darkMode = localStorage.getItem('darkMode') !== 'false';
+            const notifications = localStorage.getItem('notifications') === 'true';
+            const autoRefresh = localStorage.getItem('autoRefresh') !== 'false';
+
+            document.getElementById('darkModeToggle').checked = darkMode;
+            document.getElementById('notificationsToggle').checked = notifications;
+            document.getElementById('autoRefreshToggle').checked = autoRefresh;
+        }
+
+        // Add event listeners for preference toggles
+        document.getElementById('darkModeToggle').addEventListener('change', (e) => {
+            savePreference('darkMode', e.target.checked);
+        });
+
+        document.getElementById('notificationsToggle').addEventListener('change', (e) => {
+            savePreference('notifications', e.target.checked);
+        });
+
+        document.getElementById('autoRefreshToggle').addEventListener('change', (e) => {
+            savePreference('autoRefresh', e.target.checked);
+        });
+
+        // Load preferences on page load
+        loadPreferences();
+    </script>
+</body>
+</html> 

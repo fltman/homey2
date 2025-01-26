@@ -1,0 +1,79 @@
+<div class="device-card {% if device.is_sensor %}sensor-card{% endif %}">
+    <div class="device-header">
+        <h3>{{ device.name }}</h3>
+        {% if 'onoff' in device.capabilities %}
+        <label class="switch">
+            <input type="checkbox" class="device-toggle" 
+                   data-device-id="{{ device.id }}" 
+                   data-capability="onoff">
+            <span class="slider round"></span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if device.is_sensor %}
+    <div class="sensor-data" data-device-id="{{ device.id }}">
+        <div class="sensor-values">
+            {% for capability in device.capabilities %}
+                {% if capability.startswith('measure_') or capability.startswith('meter_') %}
+                    <div class="sensor-value">
+                        <div>
+                            {% if 'temperature' in capability %}
+                                <i class="fas fa-thermometer-half"></i>
+                            {% elif 'humidity' in capability %}
+                                <i class="fas fa-tint"></i>
+                            {% elif 'power' in capability %}
+                                <i class="fas fa-bolt"></i>
+                            {% else %}
+                                <i class="fas fa-chart-line"></i>
+                            {% endif %}
+                            <strong>{{ capability|replace('_', ' ')|title }}</strong>
+                        </div>
+                        <span data-sensor-device-id="{{ device.id }}" 
+                              data-sensor-capability="{{ capability }}">
+                            Loading...
+                        </span>
+                        <button class="btn-graph" onclick="addToGraph('{{ device.id }}', '{{ capability }}', '{{ device.name }} - {{ capability }}')">
+                            <i class="fas fa-chart-line"></i>
+                        </button>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="device-controls">
+        {% if 'dim' in device.capabilities %}
+        <div class="dimmer-control">
+            <i class="fas fa-sun"></i>
+            <input type="range" class="device-dimmer" min="0" max="1" step="0.01"
+                   data-device-id="{{ device.id }}" 
+                   data-capability="dim">
+        </div>
+        {% endif %}
+        
+        {% if 'speaker_playing' in device.capabilities %}
+        <div class="media-controls">
+            <button class="btn-icon" data-action="prev" data-device-id="{{ device.id }}" data-capability="speaker_prev">
+                <i class="fas fa-backward"></i>
+            </button>
+            <button class="btn-icon play-pause" data-device-id="{{ device.id }}" data-capability="speaker_playing">
+                <i class="fas fa-play"></i>
+            </button>
+            <button class="btn-icon" data-action="next" data-device-id="{{ device.id }}" data-capability="speaker_next">
+                <i class="fas fa-forward"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        {% if 'volume_set' in device.capabilities %}
+        <div class="volume-control">
+            <i class="fas fa-volume-up"></i>
+            <input type="range" class="device-volume" min="0" max="1" step="0.01"
+                   data-device-id="{{ device.id }}" 
+                   data-capability="volume_set">
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div> 

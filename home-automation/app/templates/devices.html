@@ -1,0 +1,902 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>My Smart Home</h1>
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <i class="fas fa-bolt"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ total_power|default('0') }} W</span>
+                    <span class="stat-label">Current Power</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-plug"></i>
+                <div class="stat-content">
+                    <span class="stat-value">{{ active_devices|default('0') }}</span>
+                    <span class="stat-label">Active Devices</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="device-groups">
+        {% for group_name, devices in device_groups.items() %}
+            {% if devices %}
+                <div class="device-group">
+                    <h2>{{ group_name }}</h2>
+                    <div class="device-grid">
+                        {% for device in devices %}
+                            {% include 'device_card.html' %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Graphs section -->
+    <div class="graphs-section">
+        <h2>Graphs</h2>
+        <div id="graphsContainer" class="graphs-container"></div>
+    </div>
+
+    <!-- Graph modal -->
+   
+</div>
+
+<style>
+:root {
+    --bg-primary: #1a1b1e;
+    --bg-secondary: #2d2e32;
+    --text-primary: #ffffff;
+    --text-secondary: #9ba1a6;
+    --accent-color: #3d5afe;
+    --success-color: #00c853;
+    --warning-color: #ffd600;
+    --error-color: #ff3d00;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.dashboard {
+    padding: 2rem;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.dashboard-stats {
+    display: flex;
+    gap: 1rem;
+}
+
+.stat-card {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 200px;
+}
+
+.stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.device-group {
+    margin-bottom: 2rem;
+}
+
+.device-group h2 {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+.device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.device-card {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: transform 0.2s;
+}
+
+.device-card:hover {
+    transform: translateY(-2px);
+}
+
+.device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.device-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: var(--accent-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.dimmer-control {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.device-dimmer {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    background: #444;
+    border-radius: 2px;
+    outline: none;
+}
+
+.device-dimmer::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    transition: all .2s ease-in-out;
+}
+
+.device-dimmer::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.sensor-card {
+    background: linear-gradient(145deg, var(--bg-secondary), #383a40);
+    min-height: 200px;
+}
+
+.sensor-value {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem;
+    margin: 0.5rem 0;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+.sensor-value:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.sensor-value strong {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.sensor-value span {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Add icons for different sensor types */
+.sensor-value i {
+    width: 24px;
+    margin-right: 8px;
+    color: var(--accent-color);
+}
+
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--bg-secondary);
+    border-top: 2px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 2rem auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.media-controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-graph {
+    background: none;
+    border: none;
+    color: var(--accent-color);
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    opacity: 0;
+}
+
+.sensor-value:hover .btn-graph {
+    opacity: 1;
+}
+
+.btn-graph:hover {
+    background: rgba(61, 90, 254, 0.1);
+}
+
+.graphs-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.graph-card {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.graph-card canvas {
+    height: 230px !important;
+}
+
+.graph-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.graph-title {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.btn-close-graph {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.btn-close-graph:hover {
+    color: var(--error-color);
+}
+
+.modal-content {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary);
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.update-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    opacity: 0.8;
+    animation: pulse 0.5s ease-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+.time-range-select {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.9rem;
+}
+
+.time-range-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.btn-voice {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.btn-voice:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-voice.recording {
+    color: var(--error-color);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.chat-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.device-card.sensor .sensor-value {
+    font-size: 2rem;
+    font-weight: 500;
+}
+
+.preferences-section {
+    background: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+}
+
+.preferences-section h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--text-secondary);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.btn-primary {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.graph-close-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+    z-index: 1;
+}
+
+.graph-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.graphs-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.graphs-section h2 {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+</style>
+
+<!-- Add Font Awesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<!-- Add in the head section -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+
+<script>
+Chart.register('time');  // Register the time scale
+
+const UPDATE_INTERVALS = {
+    SENSORS: 5000,  // Update sensor values every 5 seconds
+    GRAPHS: 5000,   // Update graphs every 5 seconds
+    TOGGLES: 10000  // Update toggle states every 10 seconds
+};
+
+const DEFAULT_TIME_SPAN = 300; // 5 minutes in seconds
+
+let charts = {};
+let savedGraphs = {};
+let activeGraphs = new Map();
+let graphData = new Map();
+let graphUpdateIntervals = new Map();
+
+// Load saved graphs from localStorage
+function loadSavedGraphs() {
+    const saved = localStorage.getItem('dashboard_graphs');
+    if (saved) {
+        savedGraphs = JSON.parse(saved);
+        // Recreate saved graphs
+        Object.entries(savedGraphs).forEach(([deviceId, graphData]) => {
+            addToGraph(
+                deviceId,
+                graphData.capability,
+                graphData.title,
+                graphData.unit || ''
+            );
+        });
+    }
+}
+
+// Save graph to localStorage
+function saveGraph(deviceId, capability, title, unit = '') {
+    savedGraphs[deviceId] = { 
+        capability, 
+        title, 
+        unit
+    };
+    localStorage.setItem('dashboard_graphs', JSON.stringify(savedGraphs));
+}
+
+// Remove graph from localStorage
+function removeGraph(deviceId) {
+    // Remove from localStorage
+    delete savedGraphs[deviceId];
+    localStorage.setItem('dashboard_graphs', JSON.stringify(savedGraphs));
+
+    // Remove from UI
+    const graphId = `${deviceId}-${savedGraphs[deviceId]?.capability}`;
+    if (activeGraphs.has(graphId)) {
+        // Clear update interval
+        clearInterval(graphUpdateIntervals.get(graphId));
+        graphUpdateIntervals.delete(graphId);
+        
+        // Remove chart
+        const chart = activeGraphs.get(graphId);
+        chart.destroy();
+        activeGraphs.delete(graphId);
+        
+        // Remove data
+        graphData.delete(graphId);
+        
+        // Remove DOM element
+        const graphCard = document.getElementById(`chart-${graphId}`).parentElement;
+        graphCard.remove();
+    }
+}
+
+function addToGraph(deviceId, capability, title, unit) {
+    const graphId = `${deviceId}-${capability}`;
+    
+    // Check if graph already exists
+    if (activeGraphs.has(graphId)) {
+        showGraphModal(graphId, title, unit);
+        return;
+    }
+
+    // Save to localStorage
+    saveGraph(deviceId, capability, title, unit);
+
+    // Create new graph card
+    const graphCard = document.createElement('div');
+    graphCard.className = 'graph-card';
+    graphCard.innerHTML = `
+        <div class="graph-header">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="graph-title">${title}</h4>
+                <select class="time-range-select" onchange="changeTimeRange('${graphId}', this.value)">
+                    <option value="300">5 minutes</option>
+                    <option value="900">15 minutes</option>
+                    <option value="1800">30 minutes</option>
+                    <option value="3600">1 hour</option>
+                    <option value="7200">2 hours</option>
+                    <option value="28800">8 hours</option>
+                    <option value="86400">24 hours</option>
+                </select>
+            </div>
+            <button class="btn-close-graph" onclick="removeGraph('${deviceId}')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <canvas id="chart-${graphId}"></canvas>
+    `;
+    
+    document.getElementById('graphsContainer').appendChild(graphCard);
+
+    // Initialize with empty data
+    graphData.set(graphId, {
+        timeSpan: DEFAULT_TIME_SPAN,
+        dataPoints: [],
+        unit: unit
+    });
+
+    // Create chart with modified options
+    const ctx = document.getElementById(`chart-${graphId}`).getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: title,
+                data: [],
+                borderColor: '#3d5afe',
+                tension: 0.4,
+                fill: false,
+                pointRadius: 0,
+                spanGaps: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#9ba1a6',
+                        callback: function(value) {
+                            return value + (unit || '');
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                x: {
+                    type: 'realtime',    // Use realtime scale
+                    realtime: {
+                        duration: DEFAULT_TIME_SPAN * 1000,
+                        refresh: UPDATE_INTERVALS.GRAPHS,
+                        delay: 1000,
+                        onRefresh: function(chart) {
+                            // This will be called to refresh the chart
+                            fetch(`/api/device/${deviceId}/capability/${capability}`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (!data.error) {
+                                        const now = Date.now();
+                                        chart.data.datasets[0].data.push({
+                                            x: now,
+                                            y: data.value
+                                        });
+                                        addUpdateIndicator(chart.canvas.parentElement);
+                                    }
+                                });
+                        }
+                    },
+                    ticks: {
+                        color: '#9ba1a6',
+                        maxTicksLimit: 6,
+                        source: 'auto'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            },
+            animation: {
+                duration: 0
+            }
+        }
+    });
+    
+    activeGraphs.set(graphId, chart);
+}
+
+function changeTimeRange(graphId, seconds) {
+    const gData = graphData.get(graphId);
+    gData.timeSpan = parseInt(seconds);
+    
+    const chart = activeGraphs.get(graphId);
+    
+    // Update realtime duration
+    chart.options.scales.x.realtime.duration = seconds * 1000;
+    
+    // Adjust time unit based on time span
+    if (seconds <= 300) {
+        chart.options.scales.x.time.unit = 'second';
+        chart.options.scales.x.time.stepSize = 30;
+    } else if (seconds <= 3600) {
+        chart.options.scales.x.time.unit = 'minute';
+        chart.options.scales.x.time.stepSize = 5;
+    } else {
+        chart.options.scales.x.time.unit = 'hour';
+        chart.options.scales.x.time.stepSize = 1;
+    }
+    
+    chart.update('quiet');
+}
+
+// Initialize Bootstrap modal
+let graphModal = null;
+
+function initializeModal() {
+    const modalElement = document.getElementById('graphModal');
+    if (modalElement) {
+        graphModal = new bootstrap.Modal(modalElement);
+        
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            const canvas = document.getElementById('sensorChart');
+            if (canvas) {
+                const chart = Chart.getChart(canvas);
+                if (chart) {
+                    chart.destroy();
+                }
+            }
+        });
+    }
+}
+
+function showGraphModal(graphId, title, unit) {
+    if (!graphModal) {
+        initializeModal();
+    }
+
+    const gData = graphData.get(graphId);
+    
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    const modalChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: gData.dataPoints.map(point => moment.utc(point.x).format('HH:mm:ss')),
+            datasets: [{
+                label: `${title} (${unit})`,
+                data: gData.dataPoints.map(point => point.y),
+                borderColor: '#3d5afe',
+                tension: 0.4,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        color: '#9ba1a6'
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#9ba1a6',
+                        callback: function(value) {
+                            return value + (unit || '');
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    suggestedMin: 0,
+                    suggestedMax: function(context) {
+                        const values = context.chart.data.datasets[0].data;
+                        const max = Math.max(...values);
+                        return max * 1.2;
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#9ba1a6'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            },
+            animation: {
+                duration: 300
+            }
+        }
+    });
+    
+    graphModal.show();
+}
+
+// Add visual feedback for updates
+function addUpdateIndicator(element) {
+    const indicator = document.createElement('div');
+    indicator.className = 'update-indicator';
+    element.appendChild(indicator);
+    
+    setTimeout(() => {
+        indicator.remove();
+    }, 500);
+}
+
+// Update sensor values periodically
+function updateSensorValues() {
+    console.log('Updating sensor values...');
+    document.querySelectorAll('[data-sensor-device-id]').forEach(element => {
+        const deviceId = element.dataset.sensorDeviceId;
+        const capability = element.dataset.sensorCapability;
+        
+        console.log(`Fetching sensor value for device ${deviceId}, capability ${capability}`);
+        
+        fetch(`/api/device/${deviceId}/capability/${capability}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Received data for ${deviceId}:`, data);
+                if (!data.error && data.value !== undefined) {
+                    let displayValue = data.value;
+                    if (capability.includes('temperature')) {
+                        displayValue += '°C';
+                    } else if (capability.includes('humidity')) {
+                        displayValue += '%';
+                    } else if (capability.includes('power')) {
+                        displayValue += 'W';
+                    }
+                    element.textContent = displayValue;
+                    addUpdateIndicator(element.parentElement);
+                }
+                else {
+                    console.warn(`Error or no value for ${deviceId}:`, data);
+                    element.textContent = 'Error';
+                }
+            })
+            .catch(error => {
+                console.error(`Error updating sensor ${deviceId}:`, error);
+                element.textContent = 'Error';
+            });
+    });
+}
+
+// Start periodic updates when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initial sensor update
+    updateSensorValues();
+    
+    // Set up periodic updates
+    setInterval(updateSensorValues, UPDATE_INTERVALS.SENSORS);
+    
+    // Load saved graphs
+    loadSavedGraphs();
+});
+</script>
+{% endblock %} 

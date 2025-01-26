@@ -1,0 +1,783 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<head>
+    <!-- Add Marked library for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+</head>
+
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>Home Assistant Chat</h1>
+        <p class="dashboard-subtitle">Ask questions or give commands to control your home</p>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <i class="fas fa-robot welcome-icon"></i>
+                <h2>Welcome to Home Assistant</h2>
+                <p>I can help you control your home and answer questions about your devices.</p>
+                <div class="example-commands">
+                    <div class="command-group">
+                        <h3>Example commands:</h3>
+                        <div class="command-item">
+                            <i class="fas fa-lightbulb"></i>
+                            <button class="command-button" onclick="sendMessage('Turn on the living room lights')">
+                                "Turn on the living room lights"
+                            </button>
+                        </div>
+                        <div class="command-item">
+                            <i class="fas fa-thermometer-half"></i>
+                            <button class="command-button" onclick="sendMessage('What\'s the current temperature?')">
+                                "What's the current temperature?"
+                            </button>
+                        </div>
+                        <div class="command-item">
+                            <i class="fas fa-bolt"></i>
+                            <button class="command-button" onclick="sendMessage('Show me power consumption')">
+                                "Show me power consumption"
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <button id="voiceButton" class="btn-voice" title="Click to speak">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <div class="speak-toggle">
+                <input type="checkbox" id="speakToggle" class="speak-checkbox">
+                <label for="speakToggle" class="speak-label">
+                    <i class="fas fa-volume-up"></i>
+                    Speak responses
+                </label>
+            </div>
+            <textarea id="chatInput" class="chat-input" 
+                      placeholder="Type your message or click the microphone to speak..."
+                      rows="1"></textarea>
+            <button id="sendButton" class="btn-send" title="Send message">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+body {
+    background: #18191c;
+    color: #ffffff;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard {
+    padding: 2rem;
+    background: #18191c;
+    min-height: 100vh;
+}
+
+.dashboard-header {
+    margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.dashboard-subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+.chat-container {
+    background: #2d2e32;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    height: calc(100vh - 12rem);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    background: #1e1f23;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.welcome-message {
+    text-align: center;
+    padding: 2rem;
+    color: #9ba1a6;
+}
+
+.welcome-icon {
+    font-size: 3rem;
+    color: var(--accent-color);
+    margin-bottom: 1.5rem;
+}
+
+.welcome-message h2 {
+    color: #ffffff;
+    margin-bottom: 1rem;
+    font-size: 1.8rem;
+}
+
+.command-group {
+    margin-top: 2rem;
+    background: #2d2e32;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: left;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.command-group h3 {
+    color: #9ba1a6;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.command-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    color: var(--text-primary);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.command-item:hover {
+    background: rgba(61, 90, 254, 0.15);
+    transform: translateX(4px);
+}
+
+.command-item i {
+    color: #5468fe;
+    width: 24px;
+    text-align: center;
+}
+
+.chat-input-container {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    background: #1e1f23;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chat-input {
+    flex: 1;
+    background: #2d2e32;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    resize: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    line-height: 1.5;
+    min-height: 45px;
+    transition: all 0.2s;
+}
+
+.chat-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.chat-input::placeholder {
+    color: #9ba1a6;
+}
+
+.btn-voice, .btn-send {
+    background: linear-gradient(135deg, var(--accent-color), #4d5eff);
+    border: none;
+    color: white;
+    width: 45px;
+    height: 45px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(61, 90, 254, 0.2);
+}
+
+.btn-voice:hover, .btn-send:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, #5468fe, #6574ff);
+    box-shadow: 0 4px 12px rgba(61, 90, 254, 0.3);
+}
+
+/* Recording animation styles */
+.recording-indicator {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    background: rgba(255, 59, 48, 0.1);
+    z-index: -1;
+}
+
+.recording-waves {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    background: rgba(255, 59, 48, 0.2);
+    animation: recording-wave 1.5s ease-out infinite;
+}
+
+@keyframes recording-wave {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0;
+    }
+}
+
+.btn-voice {
+    position: relative;
+    overflow: visible;
+}
+
+.btn-voice.recording {
+    background: #ff3b30;  /* Red color for recording */
+    transform: scale(1);
+    animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.message {
+    margin-bottom: 1rem;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    max-width: 80%;
+    line-height: 1.5;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+    font-size: 1rem;
+}
+
+.message.user {
+    margin-left: auto;
+    border-bottom-right-radius: 2px;
+    background: linear-gradient(135deg, #4d5afe, #6574ff);
+    color: #ffffff;
+    padding-right: 1.8rem;
+}
+
+.message.assistant {
+    background: #34363c;
+    color: #ffffff;
+    margin-right: auto;
+    border-bottom-left-radius: 2px;
+    padding-left: 1.8rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Add message indicators */
+.message.user::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: -8px;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, #4d5afe, #6574ff);
+    clip-path: polygon(0 0, 0% 100%, 100% 100%);
+}
+
+.message.assistant::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -8px;
+    width: 16px;
+    height: 16px;
+    background: #34363c;
+    clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+/* Add message timestamps */
+.message::before {
+    content: attr(data-time);
+    position: absolute;
+    bottom: -1.2rem;
+    font-size: 0.75rem;
+    color: #9ba1a6;
+}
+
+.message.user::before {
+    right: 0;
+}
+
+.message.assistant::before {
+    left: 0;
+}
+
+/* Scrollbar styling */
+.chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: #1e1f23;
+    border-radius: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
+    background: linear-gradient(135deg, var(--accent-color), #4d5eff);
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #5468fe, #6574ff);
+}
+
+/* Add loading animation */
+.loading {
+    display: inline-block;
+    margin-left: 4px;
+}
+
+.loading:after {
+    content: '.';
+    animation: dots 1.5s steps(5, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60% { content: '...'; }
+    80%, 100% { content: ''; }
+}
+
+/* Update button styles to ensure icons are visible */
+.btn-voice i, .btn-send i {
+    font-size: 1.2rem;
+    color: white;
+}
+
+/* Command button styles */
+.command-button {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: color 0.2s;
+}
+
+.command-button:hover {
+    color: var(--accent-color);
+}
+
+/* Markdown styling */
+.markdown-content {
+    line-height: 1.6;
+}
+
+.markdown-content code {
+    background: var(--bg-primary);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.markdown-content pre {
+    background: var(--bg-primary);
+    padding: 1em;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.markdown-content p {
+    margin: 0.5em 0;
+}
+
+.markdown-content ul, .markdown-content ol {
+    margin: 0.5em 0;
+    padding-left: 2em;
+}
+
+.markdown-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+}
+
+.markdown-content th, .markdown-content td {
+    border: 1px solid var(--text-secondary);
+    padding: 0.5em;
+    text-align: left;
+}
+
+.markdown-content th {
+    background: var(--bg-primary);
+}
+
+.speak-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+}
+
+.speak-checkbox {
+    display: none;
+}
+
+.speak-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.speak-checkbox:checked + .speak-label {
+    color: var(--accent-color);
+    background: rgba(61, 90, 254, 0.1);
+}
+
+.speak-label:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Add loading state for speech */
+.speak-label.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.speak-label.loading i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+let mediaRecorder = null;
+let audioChunks = [];
+
+document.getElementById('voiceButton').addEventListener('click', async function() {
+    const button = this;
+    
+    if (!mediaRecorder) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append('audio', audioBlob);
+                
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                
+                // Remove recording animations
+                const indicator = button.querySelector('.recording-indicator');
+                const waves = button.querySelector('.recording-waves');
+                if (indicator) indicator.remove();
+                if (waves) waves.remove();
+                
+                try {
+                    const response = await fetch('/api/transcribe-audio', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.error) {
+                        console.error('Transcription error:', data.error);
+                    } else {
+                        sendMessage(data.text);
+                        // Focus on input after voice transcription
+                        document.getElementById('chatInput').focus();
+                    }
+                } catch (error) {
+                    console.error('Error uploading audio:', error);
+                }
+                
+                // Reset recording state
+                audioChunks = [];
+                mediaRecorder = null;
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-microphone"></i>';
+                button.classList.remove('recording');
+            };
+            
+            // Start recording
+            mediaRecorder.start();
+            button.classList.add('recording');
+            
+            // Add recording animations
+            const indicator = document.createElement('div');
+            indicator.className = 'recording-indicator';
+            const waves = document.createElement('div');
+            waves.className = 'recording-waves';
+            button.appendChild(indicator);
+            button.appendChild(waves);
+            
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            alert('Unable to access microphone. Please check permissions.');
+        }
+    } else {
+        // Stop recording
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+});
+
+// Add auto-resize for textarea
+const chatInput = document.getElementById('chatInput');
+chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+});
+
+// Message handling
+function addMessage(text, isUser = false) {
+    const messagesDiv = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content' + (isUser ? '' : ' markdown-content');
+    
+    if (isUser) {
+        contentDiv.textContent = text;
+    } else {
+        contentDiv.innerHTML = renderMarkdown(text);
+        // Initialize syntax highlighting for code blocks
+        contentDiv.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightBlock(block);
+        });
+    }
+    
+    messageDiv.appendChild(contentDiv);
+    
+    messagesDiv.appendChild(messageDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    // Remove welcome message if it exists
+    const welcomeMessage = document.querySelector('.welcome-message');
+    if (welcomeMessage) {
+        welcomeMessage.remove();
+    }
+
+    if (!isUser) {
+        // Speak the response if enabled
+        speakText(text);
+    }
+}
+
+// Send message function
+async function sendMessage(text) {
+    if (!text.trim()) return;
+    
+    // Add user message
+    addMessage(text, true);
+    
+    // Clear input
+    const chatInput = document.getElementById('chatInput');
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    // Maintain focus on input
+    chatInput.focus();
+    
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: text })
+        });
+        
+        const data = await response.json();
+        
+        // Add assistant response
+        if (data.error) {
+            addMessage('Sorry, I encountered an error: ' + data.error);
+        } else {
+            addMessage(data.response);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        addMessage('Sorry, I encountered an error while processing your request.');
+    }
+}
+
+// Send button handler
+document.getElementById('sendButton').addEventListener('click', () => {
+    const chatInput = document.getElementById('chatInput');
+    sendMessage(chatInput.value);
+});
+
+// Enter key handler
+document.getElementById('chatInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(e.target.value);
+    }
+});
+
+// Make entire command item clickable
+document.querySelectorAll('.command-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('command-button')) {
+            const button = item.querySelector('.command-button');
+            if (button) {
+                button.click();
+                // Focus on input after clicking example command
+                document.getElementById('chatInput').focus();
+            }
+        }
+    });
+});
+
+// Configure marked options
+marked.setOptions({
+    highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+            return hljs.highlight(code, { language: lang }).value;
+        }
+        return hljs.highlightAuto(code).value;
+    },
+    breaks: true,
+    gfm: true
+});
+
+function renderMarkdown(content) {
+    // Sanitize and render markdown
+    const rawHtml = marked.parse(content);
+    return DOMPurify.sanitize(rawHtml);
+}
+
+// Add speech functionality
+async function speakText(text) {
+    const speakToggle = document.getElementById('speakToggle');
+    const speakLabel = document.querySelector('.speak-label');
+    
+    if (!speakToggle.checked) return;
+    
+    // Get stored voice ID
+    const prefs = JSON.parse(localStorage.getItem('preferences') || '{}');
+    const voiceId = prefs.elevenlabs_voice_id;
+    
+    if (!voiceId) {
+        console.warn('No voice ID configured');
+        return;
+    }
+    
+    // Show loading state
+    speakLabel.classList.add('loading');
+    const originalIcon = speakLabel.querySelector('i').className;
+    speakLabel.querySelector('i').className = 'fas fa-spinner';
+    
+    try {
+        const response = await fetch('/api/speak', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                text,
+                voice_id: voiceId
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Speech generation failed');
+        }
+        
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        await audio.play();
+        
+        // Clean up
+        audio.onended = () => URL.revokeObjectURL(audioUrl);
+    } catch (error) {
+        console.error('Speech error:', error);
+        speakToggle.checked = false;  // Disable speech on error
+    } finally {
+        // Restore label state
+        speakLabel.classList.remove('loading');
+        speakLabel.querySelector('i').className = originalIcon;
+    }
+}
+
+// Load speech preference
+document.addEventListener('DOMContentLoaded', function() {
+    const prefs = JSON.parse(localStorage.getItem('preferences') || '{}');
+    if (prefs.elevenlabs_voice_id) {
+        document.getElementById('speakToggle').checked = true;
+    }
+});
+</script>
+{% endblock %} 

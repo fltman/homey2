@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="preferences-page">
+    <div class="preferences-header">
+        <h1>Preferences</h1>
+    </div>
+
+    <div class="preferences-container">
+        <div class="preferences-section">
+            <h2>Chat Assistant Settings</h2>
+            <div class="form-group">
+                <label for="chatbotPersonality">Chatbot Personality:</label>
+                <div class="personality-input-group">
+                    <input type="text" id="chatbotPersonality" class="form-control" 
+                           value="{{ config.CHATBOT_PERSONALITY }}"
+                           placeholder="e.g., friendly and helpful">
+                    <button class="btn btn-secondary" onclick="generateRandomPersonality()">
+                        <i class="fas fa-random"></i> Random
+                    </button>
+                </div>
+                <small class="form-text">Define how the chatbot should behave and respond</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="elevenLabsVoiceId">ElevenLabs Voice ID:</label>
+                <select id="elevenLabsVoiceId" class="form-control">
+                    <option value="">Select a voice</option>
+                </select>
+                <button class="btn btn-secondary mt-2" onclick="testVoice()">
+                    <i class="fas fa-play"></i> Test Voice
+                </button>
+                <small class="form-text">Voice ID for text-to-speech responses</small>
+            </div>
+
+            <button class="btn btn-primary" onclick="savePreferences()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.preferences-page {
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.preferences-header {
+    margin-bottom: 2rem;
+}
+
+.preferences-header h1 {
+    color: var(--text-primary);
+    font-size: 2rem;
+}
+
+.preferences-container {
+    display: grid;
+    gap: 2rem;
+}
+
+.preferences-section {
+    background: var(--bg-secondary);
+    padding: 2rem;
+    border-radius: 12px;
+}
+
+.preferences-section h2 {
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--text-secondary);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.form-text {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.btn-primary {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.btn-primary.btn-unsaved {
+    background: var(--warning-color);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.personality-input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.personality-input-group .form-control {
+    flex: 1;
+}
+
+.btn-secondary {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--text-secondary);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+    background: var(--bg-secondary);
+}
+</style>
+
+<script>
+// Load preferences from localStorage or use defaults
+function loadPreferences() {
+    const stored = localStorage.getItem('preferences');
+    if (stored) {
+        const prefs = JSON.parse(stored);
+        document.getElementById('chatbotPersonality').value = prefs.chatbot_personality;
+        document.getElementById('elevenLabsVoiceId').value = prefs.elevenlabs_voice_id;
+    }
+}
+
+// Add unsaved changes warning
+let hasUnsavedChanges = false;
+
+function markAsUnsaved() {
+    hasUnsavedChanges = true;
+    document.querySelector('.btn-primary').classList.add('btn-unsaved');
+}
+
+// Add input change listeners
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('chatbotPersonality').addEventListener('input', markAsUnsaved);
+    document.getElementById('elevenLabsVoiceId').addEventListener('input', markAsUnsaved);
+    
+    // Add warning before leaving with unsaved changes
+    window.addEventListener('beforeunload', function(e) {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+});
+
+function savePreferences() {
+    const personality = document.getElementById('chatbotPersonality').value;
+    const voiceId = document.getElementById('elevenLabsVoiceId').value;
+    
+    // Save to localStorage
+    const prefs = {
+        chatbot_personality: personality,
+        elevenlabs_voice_id: voiceId
+    };
+    localStorage.setItem('preferences', JSON.stringify(prefs));
+
+    fetch('/api/preferences', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(prefs)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            hasUnsavedChanges = false;
+            document.querySelector('.btn-primary').classList.remove('btn-unsaved');
+            alert('Preferences saved successfully!');
+        } else {
+            alert('Error saving preferences: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving preferences');
+    });
+}
+
+// Load preferences when page loads
+document.addEventListener('DOMContentLoaded', loadPreferences);
+
+async function generateRandomPersonality() {
+    const button = document.querySelector('.btn-secondary');
+    const input = document.getElementById('chatbotPersonality');
+    
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    
+    try {
+        const response = await fetch('/api/generate-personality', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.personality) {
+            input.value = data.personality;
+        } else {
+            alert('Error generating personality: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating personality');
+    } finally {
+        // Restore button state
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-random"></i> Random';
+    }
+}
+
+// Load available voices
+async function loadVoices() {
+    try {
+        const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+            headers: {
+                'xi-api-key': '{{ config.ELEVENLABS_API_KEY }}'
+            }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load voices');
+        
+        const data = await response.json();
+        const select = document.getElementById('elevenLabsVoiceId');
+        const storedPrefs = JSON.parse(localStorage.getItem('preferences') || '{}');
+        
+        data.voices.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.voice_id;
+            option.textContent = voice.name;
+            if (voice.voice_id === storedPrefs.elevenlabs_voice_id) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading voices:', error);
+        const select = document.getElementById('elevenLabsVoiceId');
+        select.innerHTML = '<option value="">Error loading voices</option>';
+    }
+}
+
+// Test selected voice
+async function testVoice() {
+    const voiceId = document.getElementById('elevenLabsVoiceId').value;
+    if (!voiceId) {
+        alert('Please select a voice first');
+        return;
+    }
+    
+    const button = document.querySelector('.btn-secondary');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    
+    try {
+        const response = await fetch('/api/speak', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                text: 'Hello! This is a test of the selected voice.',
+                voice_id: voiceId
+            })
+        });
+        
+        if (!response.ok) throw new Error('Speech generation failed');
+        
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        await audio.play();
+        
+        // Clean up
+        audio.onended = () => URL.revokeObjectURL(audioUrl);
+    } catch (error) {
+        console.error('Speech error:', error);
+        alert('Error testing voice: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+// Load voices when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadVoices();
+    // ... existing DOMContentLoaded code ...
+});
+</script>
+{% endblock %} 

@@ -1,0 +1,571 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="voice-interface">
+    <div class="voice-container">
+        <!-- Input Voice Visualizer -->
+        <div class="visualizer-container">
+            <canvas id="voiceVisualizer"></canvas>
+            <div class="voice-status">Ready to listen...</div>
+        </div>
+        
+        <!-- Response Voice Visualizer -->
+        <div class="visualizer-container">
+            <canvas id="responseVisualizer"></canvas>
+            <div class="voice-status response-status">Waiting for response...</div>
+        </div>
+        
+        <!-- Processing Animation -->
+        <div class="processing-animation">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+        
+        <!-- Record Button -->
+        <button id="voiceButton" class="btn-voice" title="Click to speak">
+            <i class="fas fa-microphone"></i>
+            <i class="fas fa-stop hidden"></i>
+        </button>
+        
+        <!-- Continuous Mode Toggle -->
+        <div class="continuous-mode">
+            <input type="checkbox" id="continuousToggle" class="continuous-checkbox">
+            <label for="continuousToggle" class="continuous-label">
+                <i class="fas fa-infinity"></i>
+                Continuous Mode
+            </label>
+        </div>
+    </div>
+</div>
+
+<style>
+.voice-interface {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+}
+
+.voice-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+.visualizer-container {
+    width: 300px;
+    height: 100px;
+    position: relative;
+    margin: 1rem 0;
+}
+
+.visualizer-container:first-child canvas {
+    border-bottom: 2px solid var(--accent-color);
+}
+
+.visualizer-container:last-child canvas {
+    border-bottom: 2px solid #4CAF50;
+}
+
+#voiceVisualizer {
+    width: 100%;
+    height: 100%;
+}
+
+#responseVisualizer {
+    width: 100%;
+    height: 100%;
+}
+
+.voice-status {
+    position: absolute;
+    bottom: -30px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.voice-status.active {
+    opacity: 1;
+}
+
+.response-status {
+    position: absolute;
+    bottom: -30px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.response-status.active {
+    opacity: 1;
+}
+
+.btn-voice {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-color), #4d5eff);
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-voice:hover {
+    transform: scale(1.05);
+}
+
+.btn-voice.recording {
+    animation: pulse 2s infinite;
+}
+
+.recording-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    background: #ff4444;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 20px rgba(255, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); }
+}
+
+.processing-animation {
+    display: none;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    align-items: center;
+}
+
+.processing-animation.active {
+    display: flex;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out;
+}
+
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
+.continuous-mode {
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.continuous-checkbox {
+    display: none;
+}
+
+.continuous-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.continuous-checkbox:checked + .continuous-label {
+    color: var(--accent-color);
+    background: rgba(61, 90, 254, 0.1);
+}
+
+.hidden {
+    display: none;
+}
+
+/* Waiting animation for visualizers */
+@keyframes waiting-wave {
+    0% { transform: scaleY(0.1); }
+    50% { transform: scaleY(0.3); }
+    100% { transform: scaleY(0.1); }
+}
+
+.waiting-bar {
+    width: 3px;
+    height: 100%;
+    background: var(--text-secondary);
+    animation: waiting-wave 1s infinite;
+    transform-origin: bottom;
+}
+</style>
+
+<script>
+let mediaRecorder;
+let audioChunks = [];
+let audioContext;
+let analyser;
+let responseAnalyser;
+let visualizer;
+let responseVisualizer;
+let animationFrame;
+let responseAnimationFrame;
+let isProcessing = false;
+let isContinuous = false;
+let silenceTimer = null;
+let silenceStart = null;
+const SILENCE_THRESHOLD = 0.01;
+const SILENCE_DURATION = 1500;
+
+// Initialize audio context and analyzers
+async function initAudio() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    if (!analyser) {
+        analyser = audioContext.createAnalyser();
+    }
+    if (!responseAnalyser) {
+        responseAnalyser = audioContext.createAnalyser();
+    }
+
+    analyser.fftSize = 256;
+    responseAnalyser.fftSize = 256;
+    
+    visualizer = document.getElementById('voiceVisualizer').getContext('2d');
+    responseVisualizer = document.getElementById('responseVisualizer').getContext('2d');
+    
+    visualizer.canvas.width = visualizer.canvas.offsetWidth;
+    visualizer.canvas.height = visualizer.canvas.offsetHeight;
+    
+    responseVisualizer.canvas.width = responseVisualizer.canvas.offsetWidth;
+    responseVisualizer.canvas.height = responseVisualizer.canvas.offsetHeight;
+}
+
+// Create audio processor for voice activity detection
+async function createVoiceProcessor(stream) {
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    
+    // Create audio processor
+    const processor = audioContext.createGain();
+    source.connect(processor);
+    
+    // Use analyzer node for voice activity detection
+    function checkVoiceActivity() {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const normalized = average / 255;
+        
+        if (normalized < SILENCE_THRESHOLD) {
+            if (!silenceStart) {
+                silenceStart = Date.now();
+            } else if (Date.now() - silenceStart > SILENCE_DURATION) {
+                const button = document.getElementById('voiceButton');
+                if (button.classList.contains('recording')) {
+                    button.click();
+                    return;
+                }
+            }
+        } else {
+            silenceStart = null;
+        }
+        
+        if (mediaRecorder?.state === 'recording') {
+            requestAnimationFrame(checkVoiceActivity);
+        }
+    }
+    
+    requestAnimationFrame(checkVoiceActivity);
+    return processor;
+}
+
+// Draw voice visualization
+function drawVisualization(dataArray) {
+    const bufferLength = analyser.frequencyBinCount;
+    const width = visualizer.canvas.width;
+    const height = visualizer.canvas.height;
+    const barWidth = width / bufferLength * 2.5;
+    
+    visualizer.clearRect(0, 0, width, height);
+    visualizer.fillStyle = '#3d5afe';
+    
+    for(let i = 0; i < bufferLength; i++) {
+        const barHeight = dataArray[i] / 255 * height;
+        const x = i * barWidth + width/2;
+        const y = height/2 - barHeight/2;
+        
+        visualizer.fillRect(x, y, barWidth - 1, barHeight);
+        visualizer.fillRect(width - x, y, barWidth - 1, barHeight);
+    }
+}
+
+// Visualize response audio
+function visualizeResponse(audio) {
+    const source = audioContext.createMediaElementSource(audio);
+    source.connect(responseAnalyser);
+    responseAnalyser.connect(audioContext.destination);
+    
+    function drawResponse() {
+        const dataArray = new Uint8Array(responseAnalyser.frequencyBinCount);
+        responseAnalyser.getByteFrequencyData(dataArray);
+        
+        const width = responseVisualizer.canvas.width;
+        const height = responseVisualizer.canvas.height;
+        const barWidth = width / responseAnalyser.frequencyBinCount * 2.5;
+        
+        responseVisualizer.clearRect(0, 0, width, height);
+        responseVisualizer.fillStyle = '#4CAF50';
+        
+        for(let i = 0; i < responseAnalyser.frequencyBinCount; i++) {
+            const barHeight = dataArray[i] / 255 * height;
+            const x = i * barWidth + width/2;
+            const y = height/2 - barHeight/2;
+            
+            responseVisualizer.fillRect(x, y, barWidth - 1, barHeight);
+            responseVisualizer.fillRect(width - x, y, barWidth - 1, barHeight);
+        }
+        
+        responseAnimationFrame = requestAnimationFrame(drawResponse);
+    }
+    
+    drawResponse();
+    
+    audio.onended = () => {
+        cancelAnimationFrame(responseAnimationFrame);
+        responseVisualizer.clearRect(0, 0, responseVisualizer.canvas.width, responseVisualizer.canvas.height);
+    };
+}
+
+// Update voice status
+function updateStatus(text, className = 'voice-status') {
+    const status = document.querySelector('.' + className);
+    status.textContent = text;
+    status.classList.add('active');
+    setTimeout(() => status.classList.remove('active'), 2000);
+}
+
+// Draw waiting animation
+function drawWaitingAnimation(canvas, color = '#3d5afe') {
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const barCount = 20;
+    const barWidth = 3;
+    const gap = (width - barCount * barWidth) / (barCount + 1);
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    for(let i = 0; i < barCount; i++) {
+        const x = gap + i * (barWidth + gap);
+        const barHeight = height * (0.1 + Math.sin(Date.now() * 0.003 + i * 0.3) * 0.1);
+        
+        ctx.fillStyle = color;
+        ctx.fillRect(x, height/2 - barHeight/2, barWidth, barHeight);
+    }
+    
+    return requestAnimationFrame(() => drawWaitingAnimation(canvas, color));
+}
+
+// Voice button handler
+document.getElementById('voiceButton').addEventListener('click', async function() {
+    const button = this;
+    const micIcon = button.querySelector('.fa-microphone');
+    const stopIcon = button.querySelector('.fa-stop');
+    
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            await initAudio();
+            
+            const processor = await createVoiceProcessor(stream);
+            
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = async () => {
+                processor.disconnect();
+                silenceStart = null;
+                
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append('audio', audioBlob);
+                
+                updateStatus('Processing...');
+                isProcessing = true;
+                document.querySelector('.processing-animation').classList.add('active');
+                
+                try {
+                    const response = await fetch('/api/transcribe-audio', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.error) {
+                        updateStatus('Error: ' + data.error);
+                    } else {
+                        const chatResponse = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ message: data.text })
+                        });
+                        
+                        const chatData = await chatResponse.json();
+                        if (chatData.response) {
+                            await speakText(chatData.response);
+                            
+                            // If in continuous mode, start listening again
+                            if (isContinuous && !isProcessing) {
+                                button.click();
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    updateStatus('Error processing audio');
+                } finally {
+                    isProcessing = false;
+                    document.querySelector('.processing-animation').classList.remove('active');
+                }
+            };
+            
+            // Start recording and visualization
+            mediaRecorder.start();
+            button.classList.add('recording');
+            micIcon.classList.add('hidden');
+            stopIcon.classList.remove('hidden');
+            updateStatus('Listening...');
+            
+            // Start visualization
+            function visualize() {
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                drawVisualization(dataArray);
+                animationFrame = requestAnimationFrame(visualize);
+            }
+            visualize();
+            
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            updateStatus('Microphone access denied');
+        }
+    } else {
+        // Stop recording
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        button.classList.remove('recording');
+        micIcon.classList.remove('hidden');
+        stopIcon.classList.add('hidden');
+        cancelAnimationFrame(animationFrame);
+        updateStatus('Processing...');
+    }
+});
+
+// Speech functionality
+async function speakText(text) {
+    const prefs = JSON.parse(localStorage.getItem('preferences') || '{}');
+    const voiceId = prefs.elevenlabs_voice_id;
+    
+    if (!voiceId) {
+        updateStatus('No voice configured');
+        return;
+    }
+    
+    updateStatus('Speaking...', 'response-status');
+    
+    try {
+        const response = await fetch('/api/speak', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                text,
+                voice_id: voiceId
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Speech generation failed');
+        }
+        
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        // Initialize visualization before playing
+        if (!audioContext) initAudio();
+        visualizeResponse(audio);
+        
+        await audio.play();
+        
+        // Clean up
+        audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
+            updateStatus('Ready', 'response-status');
+        };
+    } catch (error) {
+        console.error('Speech error:', error);
+        updateStatus('Speech error', 'response-status');
+    }
+}
+
+// Continuous mode toggle
+document.getElementById('continuousToggle').addEventListener('change', function() {
+    isContinuous = this.checked;
+});
+
+// Initialize waiting animations
+let waitingAnimation;
+function startWaitingAnimation() {
+    const canvas = document.getElementById('responseVisualizer');
+    waitingAnimation = drawWaitingAnimation(canvas, '#4CAF50');
+}
+
+function stopWaitingAnimation() {
+    if (waitingAnimation) {
+        cancelAnimationFrame(waitingAnimation);
+        const canvas = document.getElementById('responseVisualizer');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+</script>
+{% endblock %} 
